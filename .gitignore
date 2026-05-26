@@ -13,8 +13,9 @@ dist/
 .playwright-mcp/
 .DS_Store
 
-# Markdown files
+# Markdown files (ignore all except the GitHub-facing README)
 *.md
+!README.md
 
 # Claude Code
 .claude/
