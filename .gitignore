@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.db
+.env
+
+# Node / frontend
+node_modules/
+dist/
+
+# Tooling / local artifacts
+.playwright-mcp/
+.DS_Store
+
+# Markdown files
+*.md
+
+# Claude Code
+.claude/
+CLAUDE.md
+.claude.json
+.mcp.json

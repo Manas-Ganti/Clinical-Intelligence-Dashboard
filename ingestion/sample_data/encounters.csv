@@ -1,0 +1,6 @@
+patient_mrn,class,status,start,end,reason
+1001,inpatient,finished,2026-01-04T08:00:00,2026-01-08T12:00:00,Anemia workup
+MRN-2002,outpatient,finished,2026-03-01T07:30:00,2026-03-01T09:00:00,Routine checkup
+3003,emergency,finished,2026-04-10T06:00:00,2026-04-12T18:00:00,Acute blood loss
+4004,ambulatory,finished,2026-02-15T10:00:00,2026-02-15T11:30:00,Diabetes follow-up
+6006,virtual,finished,2026-05-01T15:00:00,2026-05-01T15:20:00,Telehealth consult

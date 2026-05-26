@@ -1,0 +1,45 @@
+# NOTE: not run in this environment (no Docker installed here). Local dev is
+# verified via SQLite + `uvicorn` and `npm run dev`; this file targets Postgres
+# for parity with the production stack described in ARCHITECTURE.md. The same
+# backend code runs on both — only DATABASE_URL changes.
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: clinical
+      POSTGRES_PASSWORD: clinical
+      POSTGRES_DB: clinical
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clinical"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg2://clinical:clinical@db:5432/clinical
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:8000
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
+
+volumes:
+  pgdata:

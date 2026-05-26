@@ -1,0 +1,7 @@
+patient_id,first_name,last_name,dob,gender,deceased
+1001,Ada,Lovelace,1815-12-10,F,false
+MRN-2002,Alan,Turing,06/23/1912,male,N/A
+3003,Grace,Hopper,12/09/1906,Female,
+4004,Katherine,Johnson,1918-08-26,f,FALSE
+5005,Tim,Berners-Lee,06/08/1955,M,false
+6006,Hedy,Lamarr,11/09/1914,female,true

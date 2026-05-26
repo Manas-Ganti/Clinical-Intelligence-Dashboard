@@ -1,0 +1,4 @@
+patient_mrn,severity,message,triggered_at
+1001,warning,Low hemoglobin trend over recent labs,2026-01-05T09:05:00
+3003,critical,Critically low hemoglobin (7.4 g/dL),2026-04-10T10:05:00
+4004,info,Elevated HbA1c above target,2026-02-15T11:05:00

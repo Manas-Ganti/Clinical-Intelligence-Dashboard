@@ -1,0 +1,3 @@
+patient_mrn,modality,body_part,study_date,series_count,image_uri,source_format
+3003,CT,CHEST,2026-04-11T14:00:00,3,file:///data/imaging/3003-ct-chest,dicom
+MRN-2002,MR,BRAIN,2026-03-02T13:00:00,5,file:///data/imaging/2002-mr-brain,nifti

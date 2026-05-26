@@ -1,0 +1,39 @@
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "fhir-001",
+        "identifier": [{ "system": "urn:mrn", "value": "1001" }],
+        "name": [{ "given": ["Ada"], "family": "Lovelace" }],
+        "gender": "female",
+        "birthDate": "1815-12-10",
+        "deceasedBoolean": false
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "fhir-002",
+        "identifier": [{ "system": "urn:mrn", "value": "7007" }],
+        "name": [{ "given": ["Marie"], "family": "Curie" }],
+        "gender": "female",
+        "birthDate": "1867-11-07",
+        "deceasedBoolean": true
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "fhir-003",
+        "identifier": [{ "system": "urn:mrn", "value": "8008" }],
+        "name": [{ "given": ["Rosalind"], "family": "Franklin" }],
+        "gender": "female",
+        "birthDate": "1920-07-25",
+        "deceasedBoolean": true
+      }
+    }
+  ]
+}

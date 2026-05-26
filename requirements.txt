@@ -1,0 +1,17 @@
+# Dependencies grow per phase (see ARCHITECTURE.md).
+# Phase 1 — domain models:
+pydantic>=2.8,<3
+# Phase 2 — ingestion, service, API:
+fastapi>=0.115
+uvicorn[standard]>=0.30
+SQLAlchemy>=2.0,<3
+structlog>=24.1
+python-dotenv>=1.0
+psycopg2-binary>=2.9    # PostgreSQL driver (docker-compose)
+# Phase 4 — imaging + LLM:
+pydicom>=3.0            # DICOM (.dcm) reading + de-identification
+nibabel>=5.0            # NIfTI (.nii) reading
+anthropic>=0.69         # Claude function-calling query layer
+# Test / dev:
+pytest>=7.4
+httpx>=0.27             # FastAPI TestClient

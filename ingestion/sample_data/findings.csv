@@ -1,0 +1,11 @@
+patient_mrn,code,display,value,unit,abnormal_flag,observed_at
+1001,718-7,Hemoglobin,9.1,g/dL,low,2026-01-05T09:00:00
+1001,718-7,Hemoglobin,9.8,g/dL,low,2026-02-05T09:00:00
+1001,718-7,Hemoglobin,11.2,g/dL,low,2026-03-05T09:00:00
+1001,718-7,Hemoglobin,12.6,g/dL,normal,2026-04-05T09:00:00
+MRN-2002,718-7,Hemoglobin,15.1,g/dL,normal,2026-03-01T08:00:00
+MRN-2002,2160-0,Creatinine,1.1,mg/dL,normal,2026-03-01T08:00:00
+3003,718-7,Hemoglobin,7.4,g/dL,critical,2026-04-10T10:00:00
+3003,718-7,Hemoglobin,8.0,g/dL,critical,2026-04-20T10:00:00
+3003,718-7,Hemoglobin,9.6,g/dL,low,2026-05-02T10:00:00
+4004,4548-4,Hemoglobin A1c,6.8,%,high,2026-02-15T11:00:00
