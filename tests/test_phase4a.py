@@ -67,7 +67,7 @@ def test_seed_includes_reconciled_fhir_patients():
     Base.metadata.create_all(engine)
     TestSession = sessionmaker(bind=engine)
     seed = TestSession()
-    counts = seed_if_empty(seed)
+    counts = seed_if_empty(seed, source="sample")
     seed.close()
 
     def override_get_db():

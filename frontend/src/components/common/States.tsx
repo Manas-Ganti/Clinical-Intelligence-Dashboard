@@ -9,8 +9,8 @@ export function ErrorCard({ message }: { message: string }) {
   return (
     <div className="state state--error">
       <strong>Couldn't load patients.</strong>
-      <div className="muted">{message}</div>
-      <div className="muted">Is the API running and reachable?</div>
+      <div className="state__hint">{message}</div>
+      <div className="state__hint">Is the API running and reachable?</div>
     </div>
   )
 }
@@ -19,10 +19,9 @@ export function EmptyState() {
   return (
     <div className="state">
       <strong>No patients yet.</strong>
-      <div className="muted">
-        Expected sample patients seeded from{' '}
-        <code>ingestion/sample_data/patients.csv</code>. The table fills in once
-        the API has ingested them.
+      <div className="state__hint">
+        The API seeds on boot — run <code>python scripts/fetch_synthea.py</code>{' '}
+        for the real dataset, or it falls back to the sample fixtures.
       </div>
     </div>
   )

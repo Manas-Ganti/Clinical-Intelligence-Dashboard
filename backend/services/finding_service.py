@@ -1,6 +1,6 @@
 """Finding service — the only place finding SQL lives."""
 import structlog
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.db_models import FindingORM
@@ -32,11 +32,35 @@ def _to_orm(f: Finding) -> FindingORM:
     )
 
 
-def list_findings(db: Session, patient_id: str | None = None) -> list[Finding]:
+def list_findings(
+    db: Session,
+    patient_id: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list[Finding]:
+    """List findings, newest-ordered, optionally filtered and paged.
+
+    ``limit=None`` is unbounded and exists for internal callers (seeding,
+    analytics) that legitimately want every row. The API layer never passes None
+    — a real Synthea load is ~150k findings, and serializing that into one
+    response would be a denial of service on our own frontend.
+    """
     stmt = select(FindingORM).order_by(FindingORM.observed_at)
     if patient_id:
         stmt = stmt.where(FindingORM.patient_id == patient_id)
+    if offset:
+        stmt = stmt.offset(offset)
+    if limit is not None:
+        stmt = stmt.limit(limit)
     return [Finding.model_validate(r) for r in db.scalars(stmt).all()]
+
+
+def count_findings(db: Session, patient_id: str | None = None) -> int:
+    """Total matching findings, so a paged client knows how many there are."""
+    stmt = select(func.count()).select_from(FindingORM)
+    if patient_id:
+        stmt = stmt.where(FindingORM.patient_id == patient_id)
+    return db.scalar(stmt) or 0
 
 
 def bulk_create(db: Session, items: list[Finding]) -> int:

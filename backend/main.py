@@ -35,6 +35,10 @@ app.add_middleware(
     allow_origins=["http://localhost:5173", "http://localhost:3000"],
     allow_methods=["*"],
     allow_headers=["*"],
+    # Without this the browser hides X-Total-Count from cross-origin JS, and the
+    # frontend's page-walker would stop after one page — silently truncating a
+    # patient's findings instead of failing loudly.
+    expose_headers=["X-Total-Count"],
 )
 
 app.include_router(patients.router)

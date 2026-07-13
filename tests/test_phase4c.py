@@ -24,7 +24,7 @@ def db() -> Session:
     )
     Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine)()
-    seed_if_empty(session)
+    seed_if_empty(session, source="sample")
     try:
         yield session
     finally:

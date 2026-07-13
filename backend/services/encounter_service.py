@@ -1,6 +1,6 @@
 """Encounter service — the only place encounter SQL lives."""
 import structlog
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.db_models import EncounterORM
@@ -26,11 +26,28 @@ def _to_orm(e: Encounter) -> EncounterORM:
     )
 
 
-def list_encounters(db: Session, patient_id: str | None = None) -> list[Encounter]:
+def list_encounters(
+    db: Session,
+    patient_id: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list[Encounter]:
+    """List encounters, optionally filtered and paged (see finding_service)."""
     stmt = select(EncounterORM).order_by(EncounterORM.period_start)
     if patient_id:
         stmt = stmt.where(EncounterORM.patient_id == patient_id)
+    if offset:
+        stmt = stmt.offset(offset)
+    if limit is not None:
+        stmt = stmt.limit(limit)
     return [Encounter.model_validate(r) for r in db.scalars(stmt).all()]
+
+
+def count_encounters(db: Session, patient_id: str | None = None) -> int:
+    stmt = select(func.count()).select_from(EncounterORM)
+    if patient_id:
+        stmt = stmt.where(EncounterORM.patient_id == patient_id)
+    return db.scalar(stmt) or 0
 
 
 def bulk_create(db: Session, items: list[Encounter]) -> int:

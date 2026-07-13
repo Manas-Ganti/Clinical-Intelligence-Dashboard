@@ -9,9 +9,9 @@ export function QueryBox() {
   const ask = useMutation({ mutationFn: (q: string) => api.query(q) })
 
   return (
-    <div className="querybox">
+    <div style={{ marginBottom: 24 }}>
       <form
-        className="querybox__form"
+        className="querybox"
         onSubmit={(e) => {
           e.preventDefault()
           const q = question.trim()
@@ -24,23 +24,26 @@ export function QueryBox() {
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
         />
-        <button className="querybox__btn" type="submit" disabled={ask.isPending}>
+        <button className="btn" type="submit" disabled={ask.isPending}>
           {ask.isPending ? 'Asking…' : 'Ask'}
         </button>
       </form>
 
       {ask.isError && (
-        <div className="querybox__note muted">
-          Couldn't run the query — the natural-language layer needs{' '}
-          <code>ANTHROPIC_API_KEY</code> set on the server.
+        <div className="state state--error" style={{ marginBottom: 24 }}>
+          <strong>Couldn't run the query.</strong>
+          <div className="state__hint">
+            The natural-language layer needs <code>ANTHROPIC_API_KEY</code> set on
+            the server.
+          </div>
         </div>
       )}
 
       {ask.data && (
-        <div className="querybox__answer">
-          <p>{ask.data.answer}</p>
+        <div className="state" style={{ textAlign: 'left', marginBottom: 24 }}>
+          <p style={{ margin: 0, color: 'var(--ink)' }}>{ask.data.answer}</p>
           {ask.data.tool_calls.length > 0 && (
-            <div className="querybox__tools muted">
+            <div className="state__hint">
               Tools used: {ask.data.tool_calls.map((t) => t.name).join(', ')}
             </div>
           )}

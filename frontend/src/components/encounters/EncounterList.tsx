@@ -1,26 +1,28 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../api/client'
+import { ClassTag } from '../common/Badges'
 
 export function EncounterList({ patientId }: { patientId: string }) {
-  const { data, isLoading, error } = useQuery({
+  const { data, isPending, error } = useQuery({
     queryKey: ['encounters', patientId],
     queryFn: () => api.getEncounters(patientId),
     staleTime: 30_000,
   })
 
-  if (isLoading) return <div className="muted">Loading encounters…</div>
-  if (error) return <div className="muted">Couldn't load encounters.</div>
-  if (!data || data.length === 0) return <div className="muted">No encounters.</div>
+  if (isPending) return <div className="panel__empty">Loading encounters…</div>
+  if (error) return <div className="panel__empty">Couldn't load encounters.</div>
+  if (!data || data.length === 0)
+    return <div className="panel__empty">No encounters.</div>
 
   return (
-    <ul className="list">
+    <div className="panel">
       {data.map((e) => (
-        <li key={e.id} className="list__item">
-          <span className="tag">{e.encounter_class}</span>
-          <span className="list__main">{e.reason ?? '—'}</span>
-          <span className="muted">{e.period_start.slice(0, 10)}</span>
-        </li>
+        <div className="panel__row" key={e.id}>
+          <ClassTag value={e.encounter_class} />
+          <span className="panel__main">{e.reason ?? '—'}</span>
+          <span className="panel__meta">{e.period_start.slice(0, 10)}</span>
+        </div>
       ))}
-    </ul>
+    </div>
   )
 }

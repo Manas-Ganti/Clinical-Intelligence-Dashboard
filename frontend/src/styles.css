@@ -1,10 +1,39 @@
+/* Design tokens — from the Claude Design "Clinical Intelligence Dashboard" spec.
+   Warm paper background, slate-blue accent, near-black sidebar. Source Serif 4
+   carries identity (page titles, patient names); Manrope carries everything the
+   UI says about that identity. */
 :root {
-  --bg: #f4f6f9;
+  --accent: #4c6b8a;
+  --sidebar: #232a33;
+
+  --bg: oklch(96% 0.012 75); /* warm paper */
   --panel: #ffffff;
-  --ink: #1f2937;
-  --muted: #6b7280;
-  --line: #e5e7eb;
-  --accent: #2e75b6;
+  --panel-sunk: oklch(97.5% 0.01 75); /* the expanded row's recessed well */
+
+  --ink: oklch(24% 0.02 50);
+  --ink-2: oklch(38% 0.02 55);
+  --muted: oklch(50% 0.02 55);
+  --muted-2: oklch(58% 0.015 60);
+
+  --line: oklch(90% 0.012 70);
+  --line-soft: oklch(93% 0.01 70);
+  --line-strong: oklch(88% 0.012 70);
+
+  --shadow: 0 1px 2px oklch(20% 0.02 50 / 0.04);
+  --radius: 12px;
+  --radius-sm: 10px;
+
+  /* Status palette. Deliberately NOT the accent: these encode state, and they are
+     validated for colorblind separation (critical↔warning ΔE 21.5 under
+     deuteranopia, up from 4.1 for the design's literal red/amber pair). Every
+     badge also carries its word, so state is never color alone. */
+  --status-normal: #5f7a5a;
+  --status-warning: #b57a22;
+  --status-critical: #a32a1e;
+
+  --source-ehr: #4c6b8a;
+  --source-fhir: #5f7a5a;
+  --source-other: #946b2d;
 }
 
 * {
@@ -13,358 +42,517 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
   color: var(--ink);
   background: var(--bg);
+  -webkit-font-smoothing: antialiased;
 }
 
-/* three-panel layout: fixed sidebar | flex main | slide-in right panel */
+::selection {
+  background: oklch(85% 0.05 40);
+}
+
+/* ---------- layout ---------- */
 .app {
   display: flex;
   min-height: 100vh;
 }
 
 .sidebar {
-  width: 220px;
-  flex: 0 0 220px;
-  background: #1f3864;
-  color: #dbe5f1;
+  width: 240px;
+  flex: 0 0 240px;
+  background: var(--sidebar);
+  color: oklch(93% 0.01 70);
   display: flex;
   flex-direction: column;
-  padding: 20px 16px;
+  min-height: 100vh;
 }
 
 .sidebar__brand {
-  font-weight: 700;
-  font-size: 18px;
-  line-height: 1.2;
-  margin-bottom: 28px;
+  padding: 28px 24px 20px;
+  font-family: 'Source Serif 4', serif;
+  font-weight: 600;
+  font-size: 21px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
 }
 
 .sidebar__nav {
+  padding: 4px 14px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
+/* Patients is the only section, so this is a label rather than a control — no
+   pointer, no hover affordance promising a navigation that doesn't exist. */
 .sidebar__link {
-  padding: 8px 10px;
-  border-radius: 6px;
-  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 500;
+  text-align: left;
   cursor: default;
+  background: transparent;
+  color: color-mix(in srgb, white 62%, var(--sidebar) 10%);
 }
 
 .sidebar__link--active {
-  background: rgba(255, 255, 255, 0.16);
+  background: color-mix(in srgb, white 14%, transparent);
   color: #fff;
   font-weight: 600;
 }
 
-.sidebar__link--disabled {
-  color: #91a4c4;
+/* The dot is the active marker, so nav state doesn't rest on weight alone. */
+.sidebar__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: 0 0 6px;
+  background: color-mix(in srgb, white 30%, transparent);
+}
+
+.sidebar__link--active .sidebar__dot {
+  background: var(--accent);
 }
 
 .sidebar__foot {
   margin-top: auto;
+  padding: 20px 24px;
   font-size: 12px;
+  color: color-mix(in srgb, var(--sidebar) 20%, white 55%);
+  border-top: 1px solid color-mix(in srgb, white 12%, var(--sidebar));
 }
 
 .main {
   flex: 1;
-  padding: 28px 32px;
   min-width: 0;
+  padding: 36px 44px 60px;
+}
+
+.main__header {
+  margin-bottom: 22px;
 }
 
 .main__header h1 {
-  margin: 0 0 4px;
-  font-size: 22px;
+  font-family: 'Source Serif 4', serif;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0 0 6px;
 }
 
 .muted {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   margin: 0;
+}
+
+/* ---------- query box ---------- */
+.querybox {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.querybox__input {
+  flex: 1;
+  border: 1px solid var(--line-strong);
+  background: var(--panel);
+  border-radius: var(--radius-sm);
+  padding: 13px 18px;
+  font-size: 14.5px;
+  font-family: inherit;
+  color: var(--ink);
+  outline: none;
+}
+
+.querybox__input::placeholder {
+  color: oklch(62% 0.015 60);
+}
+
+.querybox__input:focus {
+  border-color: var(--accent);
+}
+
+.btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0 26px;
+  font-size: 14.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ---------- table ---------- */
+.tablecard {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
 }
 
 .table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 20px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.table th,
-.table td {
-  text-align: left;
-  padding: 10px 14px;
-  font-size: 14px;
-  border-bottom: 1px solid var(--line);
 }
 
 .table th {
-  background: #fafbfc;
-  color: var(--muted);
-  font-weight: 600;
+  padding: 12px 16px;
   font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  text-align: left;
+  color: oklch(52% 0.02 55);
+  border-bottom: 1px solid var(--line);
+}
+
+.table td {
+  padding: 10px 16px;
+  font-size: 14.5px;
+  border-bottom: 1px solid var(--line-soft);
+  vertical-align: middle;
 }
 
 .table tbody tr {
   cursor: pointer;
+  background: var(--panel);
 }
 
 .table tbody tr:hover {
-  background: #f0f6fc;
+  background: color-mix(in srgb, var(--accent) 4%, white);
 }
 
-.row--selected {
-  background: #e6f0fa !important;
+.row--expanded {
+  background: color-mix(in srgb, var(--accent) 6%, white) !important;
 }
 
+.row--inert {
+  cursor: default;
+}
+
+.cell-name {
+  font-family: 'Source Serif 4', serif;
+  font-weight: 600;
+  font-size: 15.5px;
+}
+
+/* MRNs are UUIDs here (Synthea ships no MRN column). Truncated + monospaced so
+   the column reads as an identifier instead of shoving the clinical columns
+   off-screen; the full value stays in the title attribute. */
+.cell-mrn {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--muted-2);
+}
+
+.cell-dim {
+  color: oklch(48% 0.02 55);
+}
+
+.qualitydot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+/* ---------- badges ---------- */
 .badge {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: 999px;
-  color: #fff;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.03em;
-}
-
-.state {
-  margin-top: 24px;
-  padding: 20px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.state--error {
-  border-color: #f3c2c2;
-  background: #fdf2f2;
-}
-
-/* slide-in right detail panel */
-.rightpanel {
-  width: 0;
-  flex: 0 0 0;
-  background: var(--panel);
-  border-left: 1px solid var(--line);
-  overflow: hidden;
-  transition: width 0.18s ease, flex-basis 0.18s ease;
-}
-
-.rightpanel--open {
-  width: 320px;
-  flex-basis: 320px;
-  padding: 24px;
-}
-
-.rightpanel__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
-.rightpanel__head h2 {
-  font-size: 18px;
-  margin: 0;
-}
-
-.rightpanel__close {
-  border: none;
-  background: none;
-  font-size: 22px;
-  line-height: 1;
-  cursor: pointer;
-  color: var(--muted);
-}
-
-.detail {
-  display: grid;
-  grid-template-columns: 110px 1fr;
-  row-gap: 10px;
-  margin-top: 18px;
-  font-size: 14px;
-}
-
-.detail dt {
-  color: var(--muted);
-}
-
-.detail dd {
-  margin: 0;
-}
-
-/* selected-patient detail in the main area (room for charts) */
-.detailpanel {
-  margin-top: 28px;
-  border-top: 2px solid var(--line);
-  padding-top: 20px;
-}
-
-.detailpanel__head {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.detailpanel__head h2 {
-  margin: 0;
-  font-size: 18px;
-}
-
-.detailgrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  margin-top: 16px;
-}
-
-.card {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 14px 16px;
-}
-
-.card h3 {
-  margin: 0 0 10px;
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-}
-
-.charts {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.chart__title {
-  font-size: 13px;
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-
-.list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.list__item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 13px;
-}
-
-.list__main {
-  flex: 1;
-  min-width: 0;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
 }
 
 .tag {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: #eef2f7;
-  color: #334155;
   font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* ---------- expanded patient row ---------- */
+.expando {
+  padding: 22px 32px 30px 68px;
+  background: var(--panel-sunk);
+}
+
+.expando__head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.expando__name {
+  font-family: 'Source Serif 4', serif;
   font-weight: 600;
+  font-size: 18px;
+}
+
+.expando__meta {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.cap {
+  text-transform: capitalize;
+}
+
+/* The whole identifier, monospaced and select-all: an MRN exists to be carried
+   into another system, so one click should take all of it and no part of the
+   surrounding sentence. */
+.expando__mrn {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  background: color-mix(in srgb, var(--accent) 8%, white);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 2px 7px;
+  text-transform: none;
+  user-select: all;
+  cursor: text;
+}
+
+.expando__body {
+  display: flex;
+  gap: 32px;
+  align-items: flex-start;
+}
+
+.expando__main {
+  flex: 1.5;
+  min-width: 0;
+}
+
+.expando__side {
+  flex: 1;
+  min-width: 0;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.sectionlabel {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+
+.chartgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.chartcard {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px 10px;
+}
+
+.chartcard__title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+/* Top-aligned, not centred: the reason wraps to as many lines as it needs, and a
+   badge floating in the vertical middle of a three-line row reads as detached
+   from the line it labels. */
+.panel__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* Nudge the pills onto the first text line's baseline. */
+.panel__row > .tag,
+.panel__row > .badge {
+  margin-top: 1px;
+}
+
+.panel__row:last-child {
+  border-bottom: 0;
+}
+
+/* Clinical descriptions ("Perennial allergic rhinitis with seasonal variation")
+   run past any column width worth having, and an ellipsis hides exactly the part
+   that distinguishes one diagnosis from another. Wrap instead of truncating. */
+.panel__main {
+  flex: 1;
+  min-width: 0;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.panel__meta {
+  color: var(--muted-2);
+  font-size: 12px;
+  white-space: nowrap;
+  margin-top: 1px;
+}
+
+.panel__empty {
+  padding: 14px;
+  color: var(--muted-2);
+  font-size: 13px;
 }
 
 .ackbtn {
-  border: 1px solid var(--accent);
-  background: #fff;
-  color: var(--accent);
-  border-radius: 6px;
   padding: 3px 10px;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: inherit;
+  color: var(--accent);
+  background: #fff;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, white);
+  border-radius: 999px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
-.ackbtn:hover {
-  background: var(--accent);
-  color: #fff;
+.ackbtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 8%, white);
 }
 
 .ackbtn:disabled {
   opacity: 0.5;
-  cursor: default;
+  cursor: not-allowed;
 }
 
-/* natural-language query box */
-.querybox {
-  margin: 18px 0 4px;
-}
-
-.querybox__form {
+/* ---------- pager ---------- */
+.pager {
   display: flex;
-  gap: 8px;
-}
-
-.querybox__input {
-  flex: 1;
-  padding: 9px 12px;
-  font-size: 14px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding: 10px 16px;
+  background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  color: var(--muted);
 }
 
-.querybox__input:focus {
-  outline: none;
-  border-color: var(--accent);
+.pager__range strong {
+  color: var(--ink);
 }
 
-.querybox__btn {
-  padding: 9px 18px;
-  font-size: 14px;
+.pager__controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pager__page {
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.pager__btn {
+  padding: 5px 10px;
+  font-size: 13px;
   font-weight: 600;
-  color: #fff;
-  background: var(--accent);
-  border: none;
-  border-radius: 8px;
+  font-family: inherit;
+  color: var(--accent);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
   cursor: pointer;
 }
 
-.querybox__btn:disabled {
-  opacity: 0.6;
-  cursor: default;
+.pager__btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 6%, white);
+  border-color: var(--accent);
 }
 
-.querybox__answer {
-  margin-top: 12px;
-  padding: 14px 16px;
+.pager__btn:disabled {
+  color: var(--muted-2);
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------- states ---------- */
+.state {
+  padding: 40px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14.5px;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+}
+
+.state--error {
+  border-color: color-mix(in srgb, var(--status-critical) 40%, white);
+  color: var(--status-critical);
+  text-align: left;
+}
+
+.state__hint {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+/* ---------- chart tooltip ---------- */
+.charttip {
+  background: #fff;
+  border: 1px solid var(--line);
   border-radius: 8px;
+  box-shadow: 0 4px 12px oklch(20% 0.02 50 / 0.1);
+  padding: 7px 10px;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
-.querybox__answer p {
-  margin: 0;
-  font-size: 14px;
-}
-
-.querybox__tools {
-  margin-top: 8px;
-}
-
-.querybox__note {
-  margin-top: 10px;
+.charttip__val {
+  font-weight: 700;
 }

@@ -13,6 +13,9 @@ dist/
 .playwright-mcp/
 .DS_Store
 
+# Real datasets — fetched on demand, never vendored (scripts/fetch_synthea.py)
+data/
+
 # Markdown files (ignore all except the GitHub-facing README)
 *.md
 !README.md

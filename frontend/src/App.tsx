@@ -1,13 +1,12 @@
-import { useState } from 'react'
 import { LeftSidebar } from './components/layout/LeftSidebar'
 import { PatientTable } from './components/patients/PatientTable'
-import { PatientDetail } from './components/patients/PatientDetail'
 import { QueryBox } from './components/query/QueryBox'
-import type { Patient } from './types'
 
+// One section. Everything clinical hangs off a patient — encounters, findings,
+// alerts and imaging all live in the expanded row — so a cross-patient section
+// per domain object was a second way to reach data the patient list already
+// reaches, and a second thing to keep in sync.
 export default function App() {
-  const [selected, setSelected] = useState<Patient | null>(null)
-
   return (
     <div className="app">
       <LeftSidebar />
@@ -15,13 +14,12 @@ export default function App() {
         <header className="main__header">
           <h1>Patients</h1>
           <p className="muted">
-            Ingested from CSV · normalized into the typed domain model · select a
-            row for clinical detail
+            Multi-source ingestion · normalized into the typed domain model ·
+            select a row for clinical detail
           </p>
         </header>
         <QueryBox />
-        <PatientTable onSelect={setSelected} selectedId={selected?.id ?? null} />
-        {selected && <PatientDetail patient={selected} />}
+        <PatientTable />
       </main>
     </div>
   )

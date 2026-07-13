@@ -4,7 +4,7 @@ Stores metadata only; the pixel bytes live in object storage referenced by
 image_uri (Phase 4b wires the actual blob store and binary ingestion).
 """
 import structlog
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.db_models import ImagingStudyORM
@@ -32,11 +32,28 @@ def _to_orm(s: ImagingStudy) -> ImagingStudyORM:
     )
 
 
-def list_imaging(db: Session, patient_id: str | None = None) -> list[ImagingStudy]:
+def list_imaging(
+    db: Session,
+    patient_id: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list[ImagingStudy]:
+    """List imaging studies, optionally filtered and paged."""
     stmt = select(ImagingStudyORM).order_by(ImagingStudyORM.study_date)
     if patient_id:
         stmt = stmt.where(ImagingStudyORM.patient_id == patient_id)
+    if offset:
+        stmt = stmt.offset(offset)
+    if limit is not None:
+        stmt = stmt.limit(limit)
     return [ImagingStudy.model_validate(r) for r in db.scalars(stmt).all()]
+
+
+def count_imaging(db: Session, patient_id: str | None = None) -> int:
+    stmt = select(func.count()).select_from(ImagingStudyORM)
+    if patient_id:
+        stmt = stmt.where(ImagingStudyORM.patient_id == patient_id)
+    return db.scalar(stmt) or 0
 
 
 def bulk_create(db: Session, items: list[ImagingStudy]) -> int:

@@ -4,7 +4,7 @@ Maps between PatientORM (persistence) and Patient (domain). Routes call these
 functions and receive typed domain objects; they never see the ORM or SQL.
 """
 import structlog
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.db_models import PatientORM
@@ -37,9 +37,27 @@ def _to_orm(p: Patient) -> PatientORM:
     )
 
 
-def list_patients(db: Session) -> list[Patient]:
-    rows = db.scalars(select(PatientORM).order_by(PatientORM.family_name)).all()
-    return [_to_domain(r) for r in rows]
+# Paging is only coherent if the order is total. family_name alone is not — there
+# are 14 Abbotts — so ties break on id. Without this, two requests for the same
+# offset could legally return different rows, and a patient could be shown twice
+# or skipped entirely while paging.
+_ORDER = (PatientORM.family_name, PatientORM.id)
+
+
+def list_patients(
+    db: Session, limit: int | None = None, offset: int = 0
+) -> list[Patient]:
+    """List patients, optionally paged (see finding_service on limit=None)."""
+    stmt = select(PatientORM).order_by(*_ORDER)
+    if offset:
+        stmt = stmt.offset(offset)
+    if limit is not None:
+        stmt = stmt.limit(limit)
+    return [_to_domain(r) for r in db.scalars(stmt).all()]
+
+
+def count_patients(db: Session) -> int:
+    return db.scalar(select(func.count()).select_from(PatientORM)) or 0
 
 
 def get_by_id(db: Session, patient_id: str) -> Patient:

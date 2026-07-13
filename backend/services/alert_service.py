@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 import structlog
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.db_models import AlertORM
@@ -36,11 +36,28 @@ def _to_orm(a: Alert) -> AlertORM:
     )
 
 
-def list_alerts(db: Session, patient_id: str | None = None) -> list[Alert]:
+def list_alerts(
+    db: Session,
+    patient_id: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list[Alert]:
+    """List alerts, newest first, optionally filtered and paged."""
     stmt = select(AlertORM).order_by(AlertORM.triggered_at.desc())
     if patient_id:
         stmt = stmt.where(AlertORM.patient_id == patient_id)
+    if offset:
+        stmt = stmt.offset(offset)
+    if limit is not None:
+        stmt = stmt.limit(limit)
     return [Alert.model_validate(r) for r in db.scalars(stmt).all()]
+
+
+def count_alerts(db: Session, patient_id: str | None = None) -> int:
+    stmt = select(func.count()).select_from(AlertORM)
+    if patient_id:
+        stmt = stmt.where(AlertORM.patient_id == patient_id)
+    return db.scalar(stmt) or 0
 
 
 def bulk_create(db: Session, items: list[Alert]) -> int:

@@ -25,7 +25,7 @@ def ctx():
     Base.metadata.create_all(engine)
     TestSession = sessionmaker(bind=engine)
     seed = TestSession()
-    seed_if_empty(seed)
+    seed_if_empty(seed, source="sample")
     seed.close()
 
     def override_get_db():

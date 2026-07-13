@@ -1,7 +1,5 @@
-// Fixed 220px nav. Only Patients is active in Phase 2; the rest are placeholders
-// for the domain objects that arrive in Phase 3.
-const SECTIONS = ['Patients', 'Encounters', 'Findings', 'Imaging', 'Alerts']
-
+// Fixed 240px nav. Patients is the only section: every other domain object is
+// reached through the patient it belongs to, in the expanded row.
 export function LeftSidebar() {
   return (
     <aside className="sidebar">
@@ -11,18 +9,15 @@ export function LeftSidebar() {
         Intelligence
       </div>
       <nav className="sidebar__nav">
-        {SECTIONS.map((s) => (
-          <span
-            key={s}
-            className={`sidebar__link ${
-              s === 'Patients' ? 'sidebar__link--active' : 'sidebar__link--disabled'
-            }`}
-          >
-            {s}
-          </span>
-        ))}
+        <span
+          className="sidebar__link sidebar__link--active"
+          aria-current="page"
+        >
+          <span className="sidebar__dot" />
+          <span>Patients</span>
+        </span>
       </nav>
-      <div className="sidebar__foot muted">Phase 2 · vertical slice</div>
+      <div className="sidebar__foot">Synthea · 1,171 patients</div>
     </aside>
   )
 }

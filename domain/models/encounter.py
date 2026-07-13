@@ -13,6 +13,11 @@ class EncounterClass(str, Enum):
     EMERGENCY = "emergency"
     AMBULATORY = "ambulatory"
     VIRTUAL = "virtual"
+    # Real-world encounter data (Synthea, and the HL7 v3 ActCode vocabulary it
+    # follows) distinguishes these from ambulatory/emergency. Folding them in
+    # would silently lose the distinction, so they are modelled explicitly.
+    WELLNESS = "wellness"
+    URGENT_CARE = "urgent_care"
 
 
 class EncounterStatus(str, Enum):

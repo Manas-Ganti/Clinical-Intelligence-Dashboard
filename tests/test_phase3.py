@@ -24,7 +24,7 @@ def seeded():
     TestSession = sessionmaker(bind=engine)
 
     seed_session = TestSession()
-    counts = seed_if_empty(seed_session)
+    counts = seed_if_empty(seed_session, source="sample")
     seed_session.close()
 
     def override_get_db():
