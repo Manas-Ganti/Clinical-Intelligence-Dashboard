@@ -385,7 +385,15 @@ body {
 .chartcard__title {
   font-size: 13px;
   font-weight: 600;
-  margin-bottom: 8px;
+  margin-bottom: 2px;
+}
+
+/* States how many readings the line is drawn from, and whether they were
+   aggregated — a chart that quietly summarises 228 points must say so. */
+.chartcard__note {
+  font-size: 11px;
+  color: var(--muted-2);
+  margin-bottom: 6px;
 }
 
 .panel {
