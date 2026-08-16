@@ -283,28 +283,6 @@ record. *(This is atomic, not tamper-proof; true immutability would need append-
 
 ---
 
-## Build approach
-
-Built as **vertical slices, not horizontal layers**: define the domain model, then
-drive *one* object (Patient) end-to-end through every layer before widening. This
-surfaces cross-layer integration bugs — the genuinely hard part — early, when fixes
-are cheap.
-
-| Phase | Scope | Status |
-|-------|-------|--------|
-| 1 | Domain models (5 objects on a shared `DomainBase`) | ✅ 16 tests |
-| 2 | Patient vertical slice: CSV → ingestion → service → API → React table | ✅ 28 tests |
-| 3 | Encounter / Finding / ImagingStudy / Alert through the proven path + Recharts | ✅ 33 tests |
-| 4a | FHIR + SQL adapters + deterministic reconciliation | ✅ |
-| 4b | Imaging (`.dcm`/`.nii`) ingestion + blob store + DICOM de-identification | ✅ |
-| 4c | LLM natural-language query layer (Claude function calling) | ✅ |
-| 4d | Audited alert acknowledge workflow | ✅ |
-| 5a | Real data (Synthea) + derived alerts + pagination on every list endpoint | ✅ 77 tests |
-| 5b | Multi-model Ask layer (Anthropic + VT ARC) + the eval harness | ✅ |
-| — | **All phases complete** | ✅ **135 tests** |
-
----
-
 ## Testing
 
 | Layer     | What's tested                                              | How                       |
@@ -328,35 +306,3 @@ lives in `evals/` and is run deliberately:
 python evals/run_eval.py --list-models        # what's wired up, and reachable
 python evals/run_eval.py --model GLM-5.2 --repeat 3
 ```
-
----
-
-## Known limitations & production-gap analysis
-
-Stated honestly — these are deliberate scope cuts, not oversights:
-
-- **No auth / RBAC.** Real clinical data needs authentication, role-based access,
-  and PHI access logging. Out of scope for the demo.
-- **Reconciliation is deterministic only.** Mistyped MRNs or DOBs won't match;
-  production would add probabilistic record linkage.
-- **No streaming ingestion.** Adapters run in batch. Live EHR feeds would need a
-  queue (Kafka/Kinesis) and incremental upserts.
-- **Audit trail is atomic, not tamper-proof.** True immutability needs WORM storage.
-- **LLM answers are bounded by defined tools.** Unsupported questions are declined
-  rather than guessed at — a safety feature, but a coverage limit.
-- **Imaging is metadata + a stored blob, not a PACS.** No DICOM networking
-  (C-STORE / C-FIND / WADO), no full diagnostic viewer with windowing, and no
-  redaction of PHI burned *into* the pixels.
-
-## How this scales to 10× data volume
-
-- **Ingestion:** move from batch adapters to a queue + worker pool; make upserts
-  idempotent on canonical ID so reruns are safe.
-- **Database:** index on `patient_id` and `observed_at`; partition `findings` by
-  time; move pgvector to a dedicated read replica.
-- **Imaging / blobs:** keep pixels in object storage behind a CDN with signed URLs;
-  stream studies to the browser instead of proxying through the API; pre-generate
-  downsampled thumbnails so list views never pull full studies.
-- **API:** cursor-based pagination on every list endpoint; response caching for hot reads.
-- **LLM:** cache tool results and add prompt caching on the static tool schemas so
-  only the question varies per call.
