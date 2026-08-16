@@ -8,6 +8,12 @@ from domain.models.finding import Finding
 
 logger = structlog.get_logger()
 
+# Newest first, ties broken on id so the order is total (see patient_service:
+# a page boundary landing inside a group of equal timestamps could otherwise
+# repeat or skip rows). Synthea stamps a whole panel with one observed_at, so
+# ties here are the rule, not the exception.
+_ORDER = (FindingORM.observed_at.desc(), FindingORM.id)
+
 
 def _to_orm(f: Finding) -> FindingORM:
     return FindingORM(
@@ -37,17 +43,42 @@ def list_findings(
     patient_id: str | None = None,
     limit: int | None = None,
     offset: int = 0,
+    *,
+    abnormal_flag: str | None = None,
+    code_contains: str | None = None,
 ) -> list[Finding]:
-    """List findings, newest-ordered, optionally filtered and paged.
+    """List findings, newest first, optionally filtered and paged.
 
     ``limit=None`` is unbounded and exists for internal callers (seeding,
     analytics) that legitimately want every row. The API layer never passes None
     — a real Synthea load is ~150k findings, and serializing that into one
     response would be a denial of service on our own frontend.
+
+    abnormal_flag/code_contains filter in SQL rather than in the caller: the LLM
+    tool layer used to pull all 150k findings into Python and filter the list
+    there, which is a full table scan on every natural-language question.
+
+    On ordering: this used to sort *ascending* despite the docstring, which made
+    every capped result a window onto the oldest rows in the table. Asked which
+    labs were critical, the model got 100 findings from 1965-71 — all Creatinine,
+    by coincidence of what Synthea generates early in a life — and reported that
+    all 995 critical results were Creatinine. 252 of them are not. The rows a
+    caller can afford to look at should be the most recent ones, for the model
+    and the UI alike.
     """
-    stmt = select(FindingORM).order_by(FindingORM.observed_at)
+    stmt = select(FindingORM).order_by(*_ORDER)
     if patient_id:
         stmt = stmt.where(FindingORM.patient_id == patient_id)
+    if abnormal_flag:
+        stmt = stmt.where(FindingORM.abnormal_flag == abnormal_flag)
+    if code_contains:
+        # Nobody types "718-7", and nobody types the exact display name either.
+        # Match either, case-insensitively.
+        needle = f"%{code_contains.lower()}%"
+        stmt = stmt.where(
+            func.lower(FindingORM.display).like(needle)
+            | func.lower(FindingORM.code).like(needle)
+        )
     if offset:
         stmt = stmt.offset(offset)
     if limit is not None:
@@ -55,11 +86,29 @@ def list_findings(
     return [Finding.model_validate(r) for r in db.scalars(stmt).all()]
 
 
-def count_findings(db: Session, patient_id: str | None = None) -> int:
-    """Total matching findings, so a paged client knows how many there are."""
+def count_findings(
+    db: Session,
+    patient_id: str | None = None,
+    *,
+    abnormal_flag: str | None = None,
+    code_contains: str | None = None,
+) -> int:
+    """Total matching findings, so a paged client knows how many there are.
+
+    The LLM layer needs this too — it sees a capped page, so without a true count
+    it cannot answer "how many?" without inferring it from the page size.
+    """
     stmt = select(func.count()).select_from(FindingORM)
     if patient_id:
         stmt = stmt.where(FindingORM.patient_id == patient_id)
+    if abnormal_flag:
+        stmt = stmt.where(FindingORM.abnormal_flag == abnormal_flag)
+    if code_contains:
+        needle = f"%{code_contains.lower()}%"
+        stmt = stmt.where(
+            func.lower(FindingORM.display).like(needle)
+            | func.lower(FindingORM.code).like(needle)
+        )
     return db.scalar(stmt) or 0
 
 

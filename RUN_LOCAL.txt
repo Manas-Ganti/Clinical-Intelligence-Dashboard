@@ -2,8 +2,26 @@ CLINICAL INTELLIGENCE DASHBOARD — LOCAL STARTUP
 ================================================
 
 Two processes: the backend API (FastAPI/uvicorn on :8000) and the frontend
-(Vite dev server on :5173). Run each in its own terminal, from the repo root:
-/Users/manasganti/clinical_dashboard
+(Vite dev server on :5173). Repo root:
+/Users/manasganti/portfolio-projects/clinical_dashboard
+
+
+-------------------------------------------------
+FASTEST — ONE COMMAND
+-------------------------------------------------
+
+./run.sh
+
+  Installs anything missing, starts both servers, waits for the API to finish
+  seeding, reports which model the Ask bar is wired to, and opens the browser.
+  Ctrl+C stops both. Logs from both stream here, prefixed [api] / [web].
+
+  ./run.sh --fresh       delete clinical.db first, so seeding re-runs
+  ./run.sh --no-open     don't open a browser
+  ./run.sh --no-install  skip the dependency check
+
+The two-terminal version below is the same thing by hand — useful when you want
+to restart one side without the other.
 
 
 -------------------------------------------------
@@ -21,7 +39,7 @@ cd frontend && npm install && cd ..
 TERMINAL 1 — BACKEND  (http://localhost:8000)
 -------------------------------------------------
 
-cd /Users/manasganti/clinical_dashboard
+cd /Users/manasganti/portfolio-projects/clinical_dashboard
 
 # Optional: start from a clean DB so sample data re-seeds on boot
 rm -f clinical.db
@@ -38,7 +56,7 @@ python3 -m uvicorn backend.main:app --reload --port 8000
 TERMINAL 2 — FRONTEND  (http://localhost:5173)
 -------------------------------------------------
 
-cd /Users/manasganti/clinical_dashboard/frontend
+cd /Users/manasganti/portfolio-projects/clinical_dashboard/frontend
 npm run dev
 
 # Then open http://localhost:5173 in a browser.
@@ -46,14 +64,22 @@ npm run dev
 
 
 -------------------------------------------------
-OPTIONAL — NATURAL-LANGUAGE QUERY (Phase 4c)
+OPTIONAL — NATURAL-LANGUAGE QUERY (the Ask bar)
 -------------------------------------------------
 
-# The /query feature calls Claude. Without a key it returns 503 and the rest of
-# the app still works. To enable it, set the key BEFORE starting the backend:
+# /query runs on Claude or on a VT ARC-hosted open model. Without the key its
+# provider needs it returns 503 and the rest of the app still works. Put the
+# settings in .env (loaded at import, so restart the backend after editing):
 
-export ANTHROPIC_API_KEY=sk-ant-...
-python3 -m uvicorn backend.main:app --reload --port 8000
+#   LLM_MODEL=gpt-oss-120b     # omit for Claude
+#   VTARC_API_KEY=...          # llm.arc.vt.edu -> Settings -> Account -> API keys
+#   ANTHROPIC_API_KEY=sk-ant-...
+
+# Which one is live right now, and whether its key is present:
+curl http://localhost:8000/query/model
+
+# Every model the query layer knows about:
+python3 evals/run_eval.py --list-models
 
 
 -------------------------------------------------

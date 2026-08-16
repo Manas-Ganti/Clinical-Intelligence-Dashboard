@@ -25,6 +25,14 @@ services:
       dockerfile: Dockerfile
     environment:
       DATABASE_URL: postgresql+psycopg2://clinical:clinical@db:5432/clinical
+    # .env is (correctly) in .dockerignore, so the image never contains a key —
+    # it is injected at run time instead. LLM_MODEL and the provider keys
+    # (ANTHROPIC_API_KEY / VTARC_API_KEY) reach the Ask bar this way. Optional:
+    # without a .env the dashboard still runs and /query returns 503.
+    # (`required` needs Compose v2.24+.)
+    env_file:
+      - path: .env
+        required: false
     depends_on:
       db:
         condition: service_healthy

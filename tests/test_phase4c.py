@@ -91,7 +91,9 @@ def test_engine_runs_tool_then_answers(db):
             "end_turn",
         ),
     ]
-    engine = QueryEngine(db, client=FakeClient(responses))
+    # Pinned: this fake speaks Anthropic's content-block shape, so the model has
+    # to be an Anthropic one regardless of what LLM_MODEL says in the shell.
+    engine = QueryEngine(db, client=FakeClient(responses), model="claude-opus-4-8")
     result = engine.ask("Which patients came from FHIR?")
 
     assert "Marie" in result.answer
@@ -100,6 +102,7 @@ def test_engine_runs_tool_then_answers(db):
 
 
 def test_query_endpoint_requires_api_key(db, monkeypatch):
+    monkeypatch.delenv("LLM_MODEL", raising=False)  # default model → Anthropic
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     app.dependency_overrides[get_db] = lambda: db
     try:

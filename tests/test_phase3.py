@@ -58,8 +58,11 @@ def test_findings_filtered_by_patient(seeded):
     findings = client.get(f"/findings?patient_id={ada['id']}").json()
     assert len(findings) == 4  # Ada has four hemoglobin readings
     assert all(f["patient_id"] == ada["id"] for f in findings)
-    # ordered by observed_at — the trend the chart will plot
-    assert [f["value"] for f in findings] == [9.1, 9.8, 11.2, 12.6]
+    # Newest first. A capped page must be a window onto the *recent* rows — when
+    # this sorted ascending, the LLM's 100-row sample was the oldest data in the
+    # table (1965-71 on Synthea) and it described the population from it.
+    # FindingsChart re-sorts ascending client-side for the trend line.
+    assert [f["value"] for f in findings] == [12.6, 11.2, 9.8, 9.1]
 
 
 def test_secondary_endpoints(seeded):

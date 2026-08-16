@@ -96,7 +96,14 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   })
   if (!res.ok) {
-    throw new Error(`POST ${path} failed (HTTP ${res.status})`)
+    // FastAPI puts the reason in `detail`. Without it, /query's 503 reads as a
+    // generic failure and hides the one thing the user needs — which provider
+    // credential the server is missing, which depends on the model it runs.
+    const detail = await res
+      .json()
+      .then((body: { detail?: string }) => body?.detail)
+      .catch(() => undefined)
+    throw new Error(detail ?? `POST ${path} failed (HTTP ${res.status})`)
   }
   return (await res.json()) as T
 }

@@ -21,6 +21,22 @@ Alert. Each Patient carries a data_quality_score and a source_system (one of \
 csv_upload, fhir_api, ehr, pacs). Findings have an abnormal_flag (normal/high/\
 low/critical). Alerts have a severity (info/warning/critical) and a status.
 
+Tool results are CAPPED: each returns at most a page of rows plus a \
+"total_matching" field giving the true number of rows that matched. When asked \
+"how many", answer from "total_matching" — never from the number of rows you can \
+see, which is only a sample. If "total_matching" is 0, say plainly that there are \
+none; do not infer a number.
+
+The same applies to DESCRIBING a result set, and it is the easier mistake to \
+make. When "returned" is less than "total_matching", the rows you can see are \
+the most recent page — not the population. Never state what is true of ALL \
+matching rows from that page: which tests appear, what the value range is, which \
+patients are involved, whether anything is unique or universal. Say what the \
+sample shows and label it as a sample ("the most recent 100 of 995 are…"), or \
+narrow the query with a filter and read "total_matching" again. Claiming every \
+critical result is a Creatinine because the visible page happens to be Creatinine \
+is exactly the error to avoid.
+
 When a question cannot be answered with the available tools, say so plainly. \
 After gathering data, give a concise answer grounded only in the tool results."""
 
@@ -76,11 +92,34 @@ CLINICAL_TOOLS = [
                 "patient_id": {"type": "string"},
                 "severity": {"type": "string", "enum": ["info", "warning", "critical"]},
                 "status": {"type": "string", "enum": ["active", "acknowledged", "resolved"]},
+                "limit": {"type": "integer", "default": 50},
             },
         },
         "cache_control": {"type": "ephemeral"},
     },
 ]
+
+# Every tool result is fed straight back into the model's context, so an
+# unbounded one is a context-window and cost bug, not just a slow query. This
+# tool surface had no cap on list_alerts at all: "show me the critical alerts"
+# returned all 995, ~58k tokens of JSON, on every call. The model does not need
+# 995 rows to answer a question about them — it needs enough to summarise and
+# count, and `total_matching` below tells it how many there really are.
+MAX_TOOL_ROWS = 100
+
+
+def _bounded(limit: object, default: int = 50) -> int:
+    """Clamp whatever the model asked for into something we can afford to send.
+
+    A model that asks for limit=10000 is not malicious, it is optimistic — and
+    honouring it would blow the context window of exactly the small local models
+    we want to be able to run this on.
+    """
+    try:
+        requested = int(limit)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return default
+    return max(1, min(requested, MAX_TOOL_ROWS))
 
 
 def _patient_brief(p: Patient) -> dict:
@@ -116,39 +155,58 @@ def _alert_brief(a: Alert) -> dict:
 
 
 def execute_tool(db: Session, name: str, tool_input: dict) -> dict:
-    """Run a tool the model chose, against the service layer. Returns JSON-safe dict."""
+    """Run a tool the model chose, against the service layer. Returns JSON-safe dict.
+
+    Every filter runs in SQL. This used to load the whole table and filter the
+    list in Python — fine against ten synthetic rows, a 150k-row table scan
+    against real data, and on every turn of every question.
+
+    Each result carries ``total_matching`` alongside the rows. Without it, a
+    truncated result is indistinguishable from a complete one, and the model
+    would confidently report "there are 50 critical alerts" when there are 995.
+    """
     if name == "find_patients":
-        fam = (tool_input.get("family_name") or "").lower()
-        src = tool_input.get("source_system")
-        limit = tool_input.get("limit", 50)
-        rows = [
-            p
-            for p in patient_service.list_patients(db)
-            if (not fam or fam in p.family_name.lower())
-            and (not src or p.source_system.value == src)
-        ]
-        return {"patients": [_patient_brief(p) for p in rows[:limit]]}
+        limit = _bounded(tool_input.get("limit"), 50)
+        filters = {
+            "family_name": tool_input.get("family_name"),
+            "source_system": tool_input.get("source_system"),
+        }
+        rows = patient_service.list_patients(db, limit=limit, **filters)
+        total = patient_service.count_patients(db, **filters)
+        return {
+            "patients": [_patient_brief(p) for p in rows],
+            "returned": len(rows),
+            "total_matching": total,
+        }
 
     if name == "find_findings":
-        flag = tool_input.get("abnormal_flag")
-        cc = (tool_input.get("code_contains") or "").lower()
-        limit = tool_input.get("limit", 100)
-        rows = [
-            f
-            for f in finding_service.list_findings(db, tool_input.get("patient_id"))
-            if (not flag or f.abnormal_flag.value == flag)
-            and (not cc or cc in f.display.lower() or cc in f.code.lower())
-        ]
-        return {"findings": [_finding_brief(f) for f in rows[:limit]]}
+        limit = _bounded(tool_input.get("limit"), 100)
+        patient_id = tool_input.get("patient_id")
+        filters = {
+            "abnormal_flag": tool_input.get("abnormal_flag"),
+            "code_contains": tool_input.get("code_contains"),
+        }
+        rows = finding_service.list_findings(db, patient_id, limit=limit, **filters)
+        total = finding_service.count_findings(db, patient_id, **filters)
+        return {
+            "findings": [_finding_brief(f) for f in rows],
+            "returned": len(rows),
+            "total_matching": total,
+        }
 
     if name == "list_alerts":
-        sev = tool_input.get("severity")
-        st = tool_input.get("status")
-        rows = [
-            a
-            for a in alert_service.list_alerts(db, tool_input.get("patient_id"))
-            if (not sev or a.severity.value == sev) and (not st or a.status.value == st)
-        ]
-        return {"alerts": [_alert_brief(a) for a in rows]}
+        limit = _bounded(tool_input.get("limit"), 50)
+        patient_id = tool_input.get("patient_id")
+        filters = {
+            "severity": tool_input.get("severity"),
+            "status": tool_input.get("status"),
+        }
+        rows = alert_service.list_alerts(db, patient_id, limit=limit, **filters)
+        total = alert_service.count_alerts(db, patient_id, **filters)
+        return {
+            "alerts": [_alert_brief(a) for a in rows],
+            "returned": len(rows),
+            "total_matching": total,
+        }
 
     return {"error": f"unknown tool: {name}"}

@@ -45,10 +45,26 @@ _ORDER = (PatientORM.family_name, PatientORM.id)
 
 
 def list_patients(
-    db: Session, limit: int | None = None, offset: int = 0
+    db: Session,
+    limit: int | None = None,
+    offset: int = 0,
+    *,
+    family_name: str | None = None,
+    source_system: str | None = None,
 ) -> list[Patient]:
-    """List patients, optionally paged (see finding_service on limit=None)."""
+    """List patients, optionally filtered and paged (see finding_service on limit=None).
+
+    family_name is a case-insensitive substring match, and both filters run in
+    SQL — the LLM tool layer previously loaded all 1,171 patients and filtered
+    the list in Python.
+    """
     stmt = select(PatientORM).order_by(*_ORDER)
+    if family_name:
+        stmt = stmt.where(
+            func.lower(PatientORM.family_name).like(f"%{family_name.lower()}%")
+        )
+    if source_system:
+        stmt = stmt.where(PatientORM.source_system == source_system)
     if offset:
         stmt = stmt.offset(offset)
     if limit is not None:
@@ -56,8 +72,21 @@ def list_patients(
     return [_to_domain(r) for r in db.scalars(stmt).all()]
 
 
-def count_patients(db: Session) -> int:
-    return db.scalar(select(func.count()).select_from(PatientORM)) or 0
+def count_patients(
+    db: Session,
+    *,
+    family_name: str | None = None,
+    source_system: str | None = None,
+) -> int:
+    """Exact count under the same filters as list_patients (see count_alerts)."""
+    stmt = select(func.count()).select_from(PatientORM)
+    if family_name:
+        stmt = stmt.where(
+            func.lower(PatientORM.family_name).like(f"%{family_name.lower()}%")
+        )
+    if source_system:
+        stmt = stmt.where(PatientORM.source_system == source_system)
+    return db.scalar(stmt) or 0
 
 
 def get_by_id(db: Session, patient_id: str) -> Patient:

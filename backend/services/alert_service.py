@@ -41,11 +41,26 @@ def list_alerts(
     patient_id: str | None = None,
     limit: int | None = None,
     offset: int = 0,
+    *,
+    severity: str | None = None,
+    status: str | None = None,
 ) -> list[Alert]:
-    """List alerts, newest first, optionally filtered and paged."""
-    stmt = select(AlertORM).order_by(AlertORM.triggered_at.desc())
+    """List alerts, newest first, optionally filtered and paged.
+
+    severity/status filter in SQL. They exist because the LLM tool layer was
+    loading every alert and filtering in Python — a full table scan per tool
+    call, and 995 rows of JSON fed back into the model's context.
+    """
+    # Newest first, ties broken on id: derived alerts inherit their finding's
+    # timestamp, so a page boundary inside a tie group would otherwise be free
+    # to repeat or skip rows between requests.
+    stmt = select(AlertORM).order_by(AlertORM.triggered_at.desc(), AlertORM.id)
     if patient_id:
         stmt = stmt.where(AlertORM.patient_id == patient_id)
+    if severity:
+        stmt = stmt.where(AlertORM.severity == severity)
+    if status:
+        stmt = stmt.where(AlertORM.status == status)
     if offset:
         stmt = stmt.offset(offset)
     if limit is not None:
@@ -53,10 +68,25 @@ def list_alerts(
     return [Alert.model_validate(r) for r in db.scalars(stmt).all()]
 
 
-def count_alerts(db: Session, patient_id: str | None = None) -> int:
+def count_alerts(
+    db: Session,
+    patient_id: str | None = None,
+    *,
+    severity: str | None = None,
+    status: str | None = None,
+) -> int:
+    """Exact count under the same filters as list_alerts.
+
+    The LLM layer needs this: it only ever sees a capped page of rows, so without
+    a true count it cannot answer "how many?" without guessing from the page size.
+    """
     stmt = select(func.count()).select_from(AlertORM)
     if patient_id:
         stmt = stmt.where(AlertORM.patient_id == patient_id)
+    if severity:
+        stmt = stmt.where(AlertORM.severity == severity)
+    if status:
+        stmt = stmt.where(AlertORM.status == status)
     return db.scalar(stmt) or 0
 
 

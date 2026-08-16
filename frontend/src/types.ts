@@ -92,4 +92,5 @@ export interface QueryToolCall {
 export interface QueryResult {
   answer: string
   tool_calls: QueryToolCall[]
+  model: string // which model answered — the backend can run several
 }

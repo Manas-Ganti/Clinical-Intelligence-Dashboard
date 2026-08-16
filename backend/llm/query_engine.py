@@ -1,21 +1,25 @@
-"""The Claude function-calling loop for natural-language queries.
+"""The function-calling loop for natural-language queries.
 
 The model maps a plain-English question to tool calls; our code executes them
-against the service layer and feeds typed results back until the model produces a
-final answer. The Anthropic client is injectable so tests can run the whole loop
-with a mock and no API key.
-"""
-import json
+against the service layer and feeds typed results back until the model produces
+a final answer.
 
+The loop is provider-agnostic (see providers.py): the same tool surface runs on
+Claude via Anthropic, or on the open models VT ARC hosts (gpt-oss, GLM, Kimi,
+DeepSeek) via their OpenAI-compatible endpoint. Which one a query uses is just
+the `model` argument — `LLM_MODEL` in the environment, or `--model` in the eval
+runner. The client is injectable so tests can run the whole loop with a mock and
+no API key.
+"""
 import structlog
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from backend.llm.tools import CLINICAL_TOOLS, SYSTEM_PROMPT, execute_tool
+from backend.llm.models import ModelSpec, default_model, resolve
+from backend.llm.providers import ToolUse, provider_for
+from backend.llm.tools import execute_tool
 
 logger = structlog.get_logger()
-
-DEFAULT_MODEL = "claude-opus-4-7"
 
 
 class ToolCall(BaseModel):
@@ -27,66 +31,63 @@ class ToolCall(BaseModel):
 class QueryResult(BaseModel):
     answer: str
     tool_calls: list[ToolCall]
+    # Which model answered. Cheap to carry and hard to reconstruct later — with
+    # thirteen models behind one endpoint, "the answer was wrong" is only
+    # actionable if you know which model gave it.
+    model: str = ""
 
 
 class QueryEngine:
-    def __init__(self, db: Session, client=None, model: str = DEFAULT_MODEL, max_turns: int = 6):
+    def __init__(
+        self,
+        db: Session,
+        client=None,
+        model: str | None = None,
+        max_turns: int = 6,
+        **provider_kwargs,
+    ):
         self.db = db
-        self._client = client
-        self.model = model
+        self.spec: ModelSpec = resolve(model or default_model())
+        self.model = self.spec.id
         self.max_turns = max_turns
-
-    @property
-    def client(self):
-        # Lazy so importing this module never requires the SDK/key until a query runs.
-        if self._client is None:
-            import anthropic
-
-            self._client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY
-        return self._client
+        self.provider = provider_for(self.spec, client=client, **provider_kwargs)
 
     def ask(self, question: str) -> QueryResult:
-        messages: list[dict] = [{"role": "user", "content": question}]
+        messages = self.provider.initial_messages(question)
         tool_calls: list[ToolCall] = []
+        logger.info("llm_query_started", model=self.model, provider=self.provider.name)
 
         for _ in range(self.max_turns):
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=1024,
-                system=[
-                    {
-                        "type": "text",
-                        "text": SYSTEM_PROMPT,
-                        "cache_control": {"type": "ephemeral"},
-                    }
-                ],
-                tools=CLINICAL_TOOLS,
-                messages=messages,
-            )
+            turn = self.provider.complete(messages)
 
-            if response.stop_reason != "tool_use":
-                answer = "".join(b.text for b in response.content if b.type == "text")
-                return QueryResult(answer=answer.strip(), tool_calls=tool_calls)
+            if not turn.tool_uses:
+                return QueryResult(
+                    answer=turn.text, tool_calls=tool_calls, model=self.model
+                )
 
-            messages.append({"role": "assistant", "content": response.content})
-            results = []
-            for block in response.content:
-                if block.type == "tool_use":
-                    result = execute_tool(self.db, block.name, dict(block.input))
-                    tool_calls.append(
-                        ToolCall(name=block.name, input=dict(block.input), result=result)
-                    )
-                    logger.info("llm_tool_executed", tool=block.name)
-                    results.append(
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": json.dumps(result, default=str),
-                        }
-                    )
-            messages.append({"role": "user", "content": results})
+            results: list[tuple[ToolUse, dict]] = []
+            for use in turn.tool_uses:
+                result = self._run(use)
+                tool_calls.append(ToolCall(name=use.name, input=use.input, result=result))
+                results.append((use, result))
+            self.provider.record(messages, turn, results)
 
         return QueryResult(
             answer="Stopped after reaching the tool-call limit without a final answer.",
             tool_calls=tool_calls,
+            model=self.model,
         )
+
+    def _run(self, use: ToolUse) -> dict:
+        """Execute one tool call, or hand back the reason we could not.
+
+        A call whose arguments didn't parse never reaches the service layer —
+        running it with silently-empty arguments would answer a different
+        question than the one asked, and answer it confidently.
+        """
+        if use.parse_error:
+            logger.warning("llm_tool_call_unparsable", tool=use.name, model=self.model)
+            return {"error": use.parse_error}
+        result = execute_tool(self.db, use.name, use.input)
+        logger.info("llm_tool_executed", tool=use.name, model=self.model)
+        return result

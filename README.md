@@ -5,6 +5,17 @@ incompatible sources, reconciles it into one typed model, lets a user ask
 questions in plain English, and surfaces the answers in a dashboard where every
 alert acknowledgment is audited.
 
+![The Clinical Intelligence Dashboard: the Ask bar answering "Show last 3 critical alerts" above the patient table, with a patient row expanded into their lab trends and encounter history](docs/dashboard.png)
+
+Everything above is running against **1,171 real Synthea patients** — 53k
+encounters, 150k findings, 995 derived alerts. Reading the screenshot top to
+bottom: the **Ask bar** took a plain-English question, chose the `list_alerts`
+tool, and answered from the rows that came back — including the note that those
+three are *the returned page*, and that 995 alerts match in total. The footer
+records which model answered (`gpt-oss-120b`) and which tools it called. Below
+it, the **patient table** pages through the full population, and an expanded row
+shows that patient's **lab trends** and **encounter history** side by side.
+
 ---
 
 ## The problem (business framing)
@@ -31,20 +42,52 @@ alert acknowledgment writes an immutable-by-construction audit record.
 
 ---
 
-## What it does
+## Features
 
-- **Multi-source ingestion** — CSV files, a FHIR API, a PostgreSQL warehouse, and
-  raw imaging files (`.dcm` / `.nii`) all map into one shared domain model.
-- **Deterministic reconciliation** — the same patient arriving from CSV, FHIR, and
-  SQL collapses into a single canonical record.
-- **Imaging split** — image *metadata* becomes a queryable domain object; image
-  *pixels* go to an object store, referenced by URI. DICOM headers are de-identified
-  on ingestion.
-- **Natural-language query** — ask a question in English; Claude selects from
-  function-calling tools that mirror the service layer. The LLM never writes SQL and
-  never returns freeform text to parse.
-- **Audited alert workflow** — acknowledging an alert atomically writes an audit
-  entry (who, when, prior state) in the same transaction as the status change.
+**Multi-source ingestion.** CSV files, a FHIR API, a PostgreSQL warehouse, and raw
+imaging files (`.dcm` / `.nii`) all map into one shared domain model. Every schema
+decision the ingestion layer makes — a coerced date format, a normalized sex code, a
+null spelling — is logged as a structured event, so a surprising number downstream
+can be traced to the row and rule that produced it.
+
+**Deterministic reconciliation.** The same patient arriving from CSV, FHIR, and SQL
+collapses into a single canonical record, matched on `mrn` + `birth_date`. Chosen
+over fuzzy matching because clinical data demands that a merge be explainable, not
+merely probable.
+
+**Real data, not fixtures.** Ships against the MITRE Synthea export: 1,171 patients,
+53k encounters, 150k findings, 855 imaging studies. Synthea publishes no
+interpretation and no alerts, so abnormal flags come from an explicit clinical
+reference panel (`ingestion/reference_ranges.py`) and **alerts are derived** from
+findings that breach a lab panic value — each one linked back to its causal
+`Finding`. Real volume is also what forced pagination on every list endpoint.
+
+**Natural-language query (the Ask bar).** Ask in English; the model selects from
+function-calling tools that mirror the service layer, and *our* code executes them.
+The LLM never writes SQL, never sees the database, and never returns freeform data
+to parse — it can only invoke operations we defined. Runs on Claude **or** on the
+open models (gpt-oss, GLM, Kimi, DeepSeek) hosted by Virginia Tech ARC: same tool
+surface, one `LLM_MODEL` setting apart.
+
+**An eval harness for that query layer.** 35 graded cases scoring tool *selection*,
+*arguments*, *chaining*, *refusal*, honest *zero* reporting, and *sampling* — whether
+a model describes 995 rows from the 100 it was shown. Graded mechanically on the
+structured tool call rather than by another model, which is what makes "can we swap
+in a cheaper model?" a number instead of an opinion.
+
+**Imaging split.** Image *metadata* becomes a queryable domain object; image *pixels*
+go to an object store, referenced by URI. DICOM headers are de-identified on
+ingestion.
+
+**Audited alert workflow.** Acknowledging an alert atomically writes an audit entry
+(who, when, prior state) in the same transaction as the status change — an
+acknowledgment cannot exist without its audit record.
+
+**Dashboard.** Paged patient table over the full population; expanding a row loads
+that patient's lab trends (Recharts, with reference bands and dense series
+aggregated rather than overplotted) and encounter history. Colors encoding clinical
+state are validated for colorblind separation, and every badge carries its word too,
+so state is never conveyed by color alone.
 
 ---
 
@@ -56,7 +99,7 @@ alert acknowledgment writes an immutable-by-construction audit record.
 | Domain models  | Pydantic v2 (the typed contract between layers)  |
 | Database       | PostgreSQL 15 + pgvector (SQLite for local/tests) |
 | Frontend       | React 18 + TypeScript + Recharts                  |
-| LLM            | Anthropic Claude via function calling             |
+| LLM            | Function calling — Anthropic Claude, or VT ARC-hosted open models |
 | Deployment     | Docker Compose                                     |
 
 ---
@@ -74,10 +117,15 @@ docker-compose up
 - Health check: http://localhost:8000/health
 
 On first boot the app seeds itself from the sample data in `ingestion/sample_data/`.
-The natural-language query endpoint needs an `ANTHROPIC_API_KEY` (copy `.env.example`
-to `.env`); without it the rest of the app runs normally and `/query` returns 503.
+The natural-language query endpoint needs a key for whichever model it is pointed at
+(copy `.env.example` to `.env`): `ANTHROPIC_API_KEY` for Claude, or `VTARC_API_KEY`
+plus `LLM_MODEL=<an ARC model>` for the VT-hosted open models. Without one the rest
+of the app runs normally and `/query` returns 503 naming the variable it wants.
+`GET /query/model` reports which model the Ask bar is currently wired to.
 
-For running the backend and frontend directly (without Docker), see `RUN_LOCAL.txt`.
+Without Docker, `./run.sh` starts the backend and frontend together, waits for
+seeding, and opens the dashboard (`--fresh` to re-seed, `--no-open` to skip the
+browser). See `RUN_LOCAL.txt` for the two-terminal version and the options.
 
 ---
 
@@ -191,14 +239,39 @@ so a new source is a new adapter, not a pipeline rewrite.
 
 ### LLM natural-language query layer
 
-The user types a question. It goes to Claude **with function-calling tools** whose
+The user types a question. It goes to the model **with function-calling tools** whose
 schemas mirror the services (e.g. `find_patients(filters)`, `get_findings(patient_id,
-since)`). Claude chooses the tools and arguments; **our code** executes them against
-the service layer and returns typed results. Claude never writes SQL and never
+since)`). The model chooses the tools and arguments; **our code** executes them against
+the service layer and returns typed results. The model never writes SQL and never
 returns freeform data to parse — it can only invoke operations we defined, so it
 cannot read or mutate anything outside the allowed surface. pgvector supports
 semantic lookups where a filter is fuzzy. Questions outside the available tools are
 declined honestly rather than guessed at.
+
+**Two providers, one loop.** `backend/llm/providers.py` keeps the loop above
+provider-agnostic: Anthropic returns content blocks and takes tool results as a user
+turn, while OpenAI-compatible servers return `tool_calls` and take them as `role:
+"tool"` messages. Each adapter owns its own wire format, so `QueryEngine` never
+branches on which model it is talking to. That buys the second provider:
+[VT ARC's hosted models](https://www.docs.arc.vt.edu/ai/011_llm_api_arc_vt_edu.html)
+— gpt-oss-120b, GLM-5.2, Kimi-K3, DeepSeek-V4-Flash — at
+`https://llm-api.arc.vt.edu/api/v1`, free to VT accounts.
+
+The registry in `backend/llm/models.py` exists because ARC serves the same weights
+under several ids that differ only in thinking budget (`reasoning_effort`,
+`enable_thinking`). Those are request parameters, not endpoints, so the id alone is
+not enough to call one correctly — the spec carries the parameters with it.
+
+```bash
+python evals/run_eval.py --list-models          # the registry, and what's reachable
+LLM_MODEL=GLM-5.2 uvicorn backend.main:app      # the dashboard, on an ARC model
+python evals/run_eval.py --model gpt-oss-120b --repeat 3 --temperature 0
+```
+
+The point of holding the tool surface fixed across providers is that the eval
+harness measures the *model*, not the plumbing — and it grades format, tool
+selection, and arguments separately, because "emitted arguments that weren't JSON"
+and "chose the wrong tool" are different problems with different fixes.
 
 ### Audited alert workflow
 
@@ -226,7 +299,9 @@ are cheap.
 | 4b | Imaging (`.dcm`/`.nii`) ingestion + blob store + DICOM de-identification | ✅ |
 | 4c | LLM natural-language query layer (Claude function calling) | ✅ |
 | 4d | Audited alert acknowledge workflow | ✅ |
-| — | **All phases complete** | ✅ **51 tests** |
+| 5a | Real data (Synthea) + derived alerts + pagination on every list endpoint | ✅ 77 tests |
+| 5b | Multi-model Ask layer (Anthropic + VT ARC) + the eval harness | ✅ |
+| — | **All phases complete** | ✅ **135 tests** |
 
 ---
 
@@ -239,10 +314,19 @@ are cheap.
 | Imaging   | header → ImagingStudy; pixels uploaded; PHI stripped      | pytest + tiny `.dcm`/`.nii` |
 | Service   | business logic + DB reads/writes                          | pytest against a test DB  |
 | API       | routes return right shape/status                          | FastAPI TestClient        |
-| LLM       | right tool chosen for a question                          | pytest with mocked calls  |
+| LLM       | right tool chosen; both provider wire formats             | pytest with mocked clients |
+| Eval      | the *scorer* — a buggy grader is worse than no grader     | pytest, hand-built results |
 
 ```bash
-pytest        # 51 tests
+pytest        # 135 tests, no API key and no network
+```
+
+The suite never calls a model. Grading a *live* one costs real requests, so that
+lives in `evals/` and is run deliberately:
+
+```bash
+python evals/run_eval.py --list-models        # what's wired up, and reachable
+python evals/run_eval.py --model GLM-5.2 --repeat 3
 ```
 
 ---
