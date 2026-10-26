@@ -230,6 +230,29 @@ def test_limitation_phrases_are_recognised(answer):
     assert score(case("ref-encounters"), _result(answer)).passed
 
 
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "I’m sorry, but I can’t answer that question with the tools that are available.",
+        "I don’t have the data needed to determine that.",
+    ],
+)
+def test_typographic_apostrophes_still_count_as_a_refusal(answer):
+    """Verbatim gpt-oss-120b refusals, U+2019 apostrophes and all. The phrase
+    list is ASCII, and this exact mismatch scored correct refusals as failures."""
+    s = score(case("ref-encounters"), _result(answer))
+    assert s.passed, s.reason
+
+
+def test_typographic_apostrophes_still_count_as_reporting_zero():
+    s = score(
+        case("emp-fhir-patients"),
+        _result("There aren’t any. All 1,171 patients came from the EHR.",
+                ("find_patients", {"source_system": "fhir_api"})),
+    )
+    assert s.passed, s.reason
+
+
 # -- sampling — the page is not the population ----------------------------- #
 def test_generalising_from_a_capped_page_fails():
     """The observed failure: gpt-oss-120b saw 100 of 995 critical findings, all

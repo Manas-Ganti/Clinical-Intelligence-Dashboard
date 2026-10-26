@@ -46,13 +46,23 @@ class Score:
         return self.case.category
 
 
+# Models routinely emit typographic apostrophes ("can’t", U+2019). The phrase
+# lists are written with ASCII ones, so without this a correct refusal scored as
+# a failure: gpt-oss-120b's refusals went 0/18 on punctuation alone.
+_APOSTROPHES = str.maketrans({"’": "'", "‘": "'", "ʼ": "'"})
+
+
+def _normalise(text: str) -> str:
+    return text.lower().translate(_APOSTROPHES)
+
+
 def _admits_limitation(answer: str) -> bool:
-    low = answer.lower()
+    low = _normalise(answer)
     return any(p in low for p in LIMITATION_PHRASES)
 
 
 def _reports_zero(answer: str) -> bool:
-    low = answer.lower()
+    low = _normalise(answer)
     return any(p in low for p in ZERO_PHRASES)
 
 
@@ -69,7 +79,7 @@ def _generalises(answer: str) -> str | None:
     describing the sample. Sentence-by-sentence rather than whole-answer, because
     an answer routinely does both: states what the page shows, then overreaches
     one sentence later, and only the second sentence is the failure."""
-    for sentence in re.split(r"(?<=[.!?\n])\s+", answer.lower()):
+    for sentence in re.split(r"(?<=[.!?\n])\s+", _normalise(answer)):
         if any(scope in sentence for scope in SCOPE_PHRASES):
             continue
         for phrase in GENERALISATION_PHRASES:
@@ -112,7 +122,7 @@ def score(case: Case, result: QueryResult) -> Score:
                 case, False,
                 "answered without acknowledging it has no tool for this", called,
             )
-        forbidden = [s for s in case.forbid_in_answer if s.lower() in result.answer.lower()]
+        forbidden = [s for s in case.forbid_in_answer if _normalise(s) in _normalise(result.answer)]
         if forbidden:
             return Score(case, False, f"fabricated content: {forbidden!r}", called)
         return Score(case, True, "", called)
@@ -173,7 +183,7 @@ def score(case: Case, result: QueryResult) -> Score:
                 called,
             )
 
-    forbidden = [s for s in case.forbid_in_answer if s.lower() in result.answer.lower()]
+    forbidden = [s for s in case.forbid_in_answer if _normalise(s) in _normalise(result.answer)]
     if forbidden:
         return Score(case, False, f"answer contains {forbidden!r}", called)
 
